@@ -1,0 +1,22 @@
+                    Internet Users
+                           |
+                           |
+                      Route 53 DNS
+                           |
+                           |
+                Application Load Balancer
+                           |
+          -----------------------------------
+          |                                 |
+          |                                 |
+     Availability Zone A             Availability Zone B
+          |                                 |
+          |                                 |
+        EC2-1                            EC2-2
+          |                                 |
+          -----------------------------------
+                     Auto Scaling Group
+
+                           |
+                     CloudWatch
+                     Monitoring
