@@ -1,0 +1,210 @@
+# Serverless Cost Optimizer & Security Auditor
+
+## Objective
+
+The objective of this project is to implement a serverless governance solution that automatically audits AWS resources for cost optimization and security-related findings.
+
+The solution performs automated inspections of cloud resources, generates reports, and delivers notifications to administrators without requiring any server infrastructure.
+
+---
+
+# Architecture Components
+
+## AWS Lambda
+
+Performs cost and security auditing logic.
+
+## IAM Role
+
+Grants Lambda permission to inspect AWS resources and publish notifications.
+
+## Amazon SNS
+
+Delivers audit reports via email.
+
+## Amazon EventBridge
+
+Triggers Lambda executions automatically based on a schedule.
+
+## Amazon CloudWatch
+
+Stores Lambda execution logs and operational metrics.
+
+---
+
+# Deployment Procedure
+
+Phase 1: Creating and IAM role:
+
+	1. Navigate to IAM --> roles --> create a role
+	2. Select AWS service as trusted entity type
+	3. Use case --> Lambda
+	4. Select following policies:
+	ReadOnlyAccess
+	CloudWatchLogsFullAccess
+	AmazonSNSFullAccess
+	5. Enter a name and description for the role and check if the policies and right. Finally, click create.
+
+
+
+Phase 2: Create SNS Notification System:
+
+
+	1. Navigate to SNS --> Topics --> Create Topic
+	2. Enter the name of topic --> Cost-Security-Report-Topic and click create
+	3. In SNS --> subscriptions --> Create Subscription
+	4. Select the Topic ARN just created and set the protocol to E-mail. For Endpoint enter your email and click create subscription.
+	5. Now, go to your email and confirm SNS subscription via mail.
+
+
+Phase 3: Create Lambda Function:
+
+
+	1. Navigate to Lambda --> Create a function
+	2. Select Author from scratch
+	3. Enter the name for the function, Cost-security-auditor
+	4. Select Runtime - Python 3.12 (stable)
+	5. Under Additional setting, enable custom execution role and select the role created in previous step (CostSecurityAuditRole) and save it
+	6. Finally, click create
+
+
+Phase 4: Configuring Environment variable:
+
+	1. Navigate to Lambda, select the function just created and then under Configuration select Environment variable
+	2. Click on Edit --> Add environment variable
+	3. In this add, key as SNS_TOPIC_ARN and value as Topic ARN from the SNS created
+
+
+	    Lambda Code:
+
+	  	a. Navigate to Lambda, select the function just created and under Code --> Source code edit the lambda_function.py 
+	
+        	import boto3
+        	import os
+        	ec2 = boto3.client("ec2")
+        	sns = boto3.client("sns")
+        	SNS_TOPIC = os.environ["SNS_TOPIC_ARN"]
+        	def get_unattached_volumes():
+        	    findings = []
+        	    volumes = ec2.describe_volumes(
+        	        Filters=[
+        	            {
+        	                "Name": "status",
+        	                "Values": ["available"]
+        	            }
+        	        ]
+        	    )
+        	    for volume in volumes["Volumes"]:
+        	        findings.append(
+        	            f"Unattached EBS Volume: {volume['VolumeId']}"
+        	        )
+        	    return findings
+        	
+        	def get_unused_elastic_ips():
+        	    findings = []
+        	    addresses = ec2.describe_addresses()
+        	    for address in addresses["Addresses"]:
+        	        if "AssociationId" not in address:
+        	            findings.append(
+        	                f"Unused Elastic IP: {address['PublicIp']}"
+        	            )
+        	    return findings
+        	
+        	def get_open_security_groups():
+        	    findings = []
+        	    security_groups = ec2.describe_security_groups()
+        	    for sg in security_groups["SecurityGroups"]:
+        	        for rule in sg["IpPermissions"]:
+        	            for ip in rule.get("IpRanges", []):
+        	                if ip.get("CidrIp") == "0.0.0.0/0":
+        	                    findings.append(
+        	                        f"Open Security Group: {sg['GroupName']}"
+        	                    )
+        	    return findings
+        	
+        	def lambda_handler(event, context):
+        	    report = []
+        	    report.append("AWS Cost & Security Audit Report")
+        	    report.append("")
+        	    report.append("=== COST FINDINGS ===")
+        	    report.extend(get_unattached_volumes())
+        	    report.extend(get_unused_elastic_ips())
+        	    report.append("")
+        	    report.append("=== SECURITY FINDINGS ===")
+        	    report.extend(get_open_security_groups())
+        	    final_report = "\n".join(report)
+        	    sns.publish(
+        	        TopicArn=SNS_TOPIC,
+        	        Subject="Daily AWS Cost & Security Audit",
+        	        Message=final_report
+        	    )
+        	    return {
+        	        "statusCode": 200,
+        	        "body": final_report
+        	    }
+        	
+	
+	
+Phase 5: Deploying and testing Lambda function
+
+	1. Click on the deploy option to deploy the function.
+	2. Next, create a test by clicking on Test option next to code
+	3. Under Test event action select Create new event option
+	4. Invocation Type --> Synchronous
+	5. Event Name --> ManualTest
+	6. Event sharing settings --> Private
+	7. Finally save and run the test
+	8. It's expected to receive a message stating, "Executing function: Succeeded"
+
+
+
+Phase 6: Schedule daily execution
+
+	1. Navigate to Amazon EventBridge --> Buses --> Rules --> Create Rules --> Schedule
+	2. Under Amazon Event --> Schedules --> Create Schedule
+	3. Schedule details:
+		a. Schedule name: daily-cost-security-audit
+		b. Schedule group: default
+		c. Occurrence: Recurring schedule
+		d. Time/Zone: Asia/Calcutta
+		e. Schedule type: Rate-based schedule
+		f. Rate expression: 1 hours
+		g. Flexible time window: off
+		h. Template details: template target - AWS Lambda 
+		i. Invoke --> Lambda Function - Cost-security-auditor
+		j. Schedule state: Enabled
+		k. Action after completion: None
+		l. Retry policy and Dead-letter queue: None
+		m. Permissions: Create new role for this schedule
+	4. Finally, Save schedule
+
+
+Phase 7: Cloudwatch Monitoring
+
+	Navigate to CloudWatch --> Log Management --> /aws/lambda/Cost-security-auditor
+	Verify:
+      - Successful executions
+      - Invocation count
+      - Execution duration
+      - Error messages
+      - Lambda response output
+
+
+
+To generate test findings you can add EBS (unattached), ElasticIP (unattached), security groups
+
+As per the time duration mentioned in the scheduler notification will be sent to the registered email address.
+
+
+
+# Cleanup
+
+Delete the following resources to avoid unnecessary AWS charges:
+
+- Lambda Function
+- EventBridge Schedule
+- SNS Topic
+- IAM Role
+- Test EBS Volumes
+- Test Elastic IPs
+- Test Security Groups
