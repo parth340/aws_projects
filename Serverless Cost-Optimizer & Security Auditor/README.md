@@ -164,7 +164,7 @@ The solution was validated by:
 
 ---
 
-**##NOTE:** Snapshots captured during building the project is added in serverless_cost_optimizer_and_security_auditor.zip
+**#NOTE:** Snapshots captured during building the project is added in serverless_cost_optimizer_and_security_auditor.zip
 
 ## Author
 Parth Sawant
