@@ -268,6 +268,9 @@ monitoring-logging-platform/
 
 ---
 
+**#NOTE:** Snapshots captured during building the project is added in Monitoring_and_Logging_Platform_on_AWS.zip
+
+
 ## Author
 
 **Parth Sawant**
